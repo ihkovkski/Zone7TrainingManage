@@ -90,6 +90,7 @@ body.admin .admin-only{display:revert!important}
   <nav>
     <button data-tab="trainings" class="on">การอบรม</button>
     <button data-tab="speakers">วิทยากร</button>
+    <button data-tab="expertise">ความเชี่ยวชาญ</button>
     <button data-tab="report">รายงาน</button>
     <button data-tab="users" class="admin-only">จัดการผู้ใช้</button>
   </nav>
@@ -122,6 +123,21 @@ body.admin .admin-only{display:revert!important}
       </div>
     </section>
 
+    <!-- Expertise -->
+    <section id="tab-expertise" class="hidden">
+      <div class="card">
+        <form id="fmEx" class="bar admin-only">
+          <div class="grow"><label>เพิ่มความเชี่ยวชาญ / วิชา</label><input name="name" required placeholder="เช่น ระเบียบการเบิกจ่าย, ระบบ e-GP, งบประมาณ"></div>
+          <button class="btn">+ เพิ่ม</button>
+        </form>
+        <div class="bar"><div class="grow"><label>ค้นหา</label><input id="exSearch" placeholder="ชื่อวิชา / วิทยากร"></div></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>ความเชี่ยวชาญ / วิชา</th><th class="num">จำนวนวิทยากร</th><th>วิทยากร</th><th class="admin-only"></th></tr></thead>
+          <tbody id="exBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+
     <!-- Report -->
     <section id="tab-report" class="hidden">
       <div class="card">
@@ -130,7 +146,8 @@ body.admin .admin-only{display:revert!important}
           <div><label>ถึงวันที่</label><input type="date" id="rpTo"></div>
           <div class="grow"><label>หน่วยงานที่จัด</label><select id="rpAgency"></select></div>
           <div class="grow"><label>วิทยากร</label><select id="rpSpeaker"></select></div>
-          <div><label>ประเภทรายงาน</label><select id="rpType"><option value="list">รายการการอบรม</option><option value="speaker">สรุปตามวิทยากร</option><option value="agency">สรุปตามหน่วยงาน</option></select></div>
+          <div class="grow"><label>ความเชี่ยวชาญ</label><select id="rpExpertise"></select></div>
+          <div><label>ประเภทรายงาน</label><select id="rpType"><option value="list">รายการการอบรม</option><option value="speaker">สรุปตามวิทยากร</option><option value="agency">สรุปตามหน่วยงาน</option><option value="expertise">วิทยากรตามความเชี่ยวชาญ</option></select></div>
         </div>
         <div class="bar">
           <button class="btn" id="btnCsv">ดาวน์โหลด Excel (CSV)</button>
@@ -170,7 +187,11 @@ body.admin .admin-only{display:revert!important}
     <div><label>สังกัด / หน่วยงาน</label><input name="org"></div>
     <div><label>โทรศัพท์</label><input name="phone"></div>
     <div><label>อีเมล</label><input name="email" type="email"></div>
-    <div class="full"><label>ความเชี่ยวชาญ / หัวข้อที่บรรยาย</label><textarea name="expertise"></textarea></div>
+    <div class="full"><label>ความเชี่ยวชาญ (เลือกได้ไม่จำกัด)</label>
+      <div class="bar" style="margin-bottom:6px"><div class="grow"><input id="spExFilter" placeholder="ค้นหา หรือพิมพ์ชื่อใหม่แล้วกด + เพิ่ม"></div><button type="button" class="btn ghost sm" id="spExAdd">+ เพิ่มใหม่</button></div>
+      <div class="spk-list" id="spExList"></div>
+    </div>
+    <div class="full"><label>รายละเอียดเพิ่มเติม</label><textarea name="expertise"></textarea></div>
   </div>
   <div class="dlg-foot"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn" value="save">บันทึก</button></div>
 </form></dialog>
@@ -185,7 +206,7 @@ body.admin .admin-only{display:revert!important}
     <div><label>วันที่เริ่ม *</label><input name="startDate" type="date" required></div>
     <div><label>วันที่สิ้นสุด</label><input name="endDate" type="date"></div>
     <div class="full"><label>วิทยากร (เลือกได้หลายคน)</label>
-      <input id="trSpFilter" placeholder="ค้นหาวิทยากร..." style="margin-bottom:6px">
+      <input id="trSpFilter" placeholder="ค้นหาวิทยากร หรือความเชี่ยวชาญ..." style="margin-bottom:6px">
       <div class="spk-list" id="trSpList"></div>
     </div>
     <div class="full"><label>หมายเหตุ</label><textarea name="note"></textarea></div>
@@ -196,7 +217,7 @@ body.admin .admin-only{display:revert!important}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, limit, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, limit, writeBatch, arrayRemove, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ====== ใส่ค่า Firebase config ของคุณตรงนี้ (ดูวิธีใน README.md) ======
 const firebaseConfig = {
@@ -221,9 +242,12 @@ const ROLE = {user:'ผู้ใช้ทั่วไป', admin:'Admin'};
 const hash = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('tr7:' + s)))].map(b => b.toString(16).padStart(2, '0')).join('');
 const uKey = u => u.trim().toLowerCase();
 
-let me = null, speakers = [], trainings = [], users = [], unsubs = [];
+let me = null, speakers = [], trainings = [], users = [], expertise = [], unsubs = [];
 const isAdmin = () => me?.role === 'admin';
 const spName = id => speakers.find(s => s.id === id)?.name || '(ลบแล้ว)';
+const exName = id => expertise.find(x => x.id === id)?.name || '';
+const spExNames = s => (s.expertiseIds || []).map(exName).filter(Boolean);
+const exSpeakers = id => speakers.filter(s => (s.expertiseIds || []).includes(id));
 const spCount = id => trainings.filter(t => (t.speakerIds || []).includes(id)).length;
 
 function show(v){ ['login','app'].forEach(x => $('#view-' + x).classList.toggle('hidden', x !== v)); }
@@ -268,6 +292,7 @@ async function startSession(key){
   document.body.classList.toggle('admin', isAdmin());
   show('app');
   unsubs.push(onSnapshot(query(collection(db, 'speakers'), orderBy('name')), s => { speakers = s.docs.map(d => ({id: d.id, ...d.data()})); renderAll(); }));
+  unsubs.push(onSnapshot(query(collection(db, 'expertise'), orderBy('name')), s => { expertise = s.docs.map(d => ({id: d.id, ...d.data()})); renderAll(); if ($('#dlgSp').open) renderSpExList(); }));
   unsubs.push(onSnapshot(query(collection(db, 'trainings'), orderBy('startDate', 'desc')), s => { trainings = s.docs.map(d => ({id: d.id, ...d.data()})); renderAll(); }));
   if (isAdmin()) unsubs.push(onSnapshot(collection(db, 'users'), s => { users = s.docs.map(d => ({id: d.id, ...d.data()})); renderUsers(); }));
 }
@@ -282,17 +307,61 @@ $$('nav button').forEach(b => b.onclick = () => {
 });
 $$('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
 
-function renderAll(){ renderTrainings(); renderSpeakers(); renderReportFilters(); renderReport(); }
+function renderAll(){ renderTrainings(); renderSpeakers(); renderExpertise(); renderReportFilters(); renderReport(); }
+
+// ---------- Expertise ----------
+function renderExpertise(){
+  const q = $('#exSearch').value.toLowerCase();
+  const rows = expertise.filter(x => [x.name, ...exSpeakers(x.id).map(s => s.name)].join(' ').toLowerCase().includes(q));
+  $('#exBody').innerHTML = rows.length ? rows.map(x => { const sp = exSpeakers(x.id); return `<tr>
+    <td><b>${esc(x.name)}</b></td>
+    <td class="num">${sp.length}</td>
+    <td>${sp.map(s => `<span class="chip">${esc(s.name)}</span>`).join('') || '<small style="color:var(--mut)">-</small>'}</td>
+    <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-eex="${x.id}">แก้ไข</button> <button class="btn del sm" data-dex="${x.id}">ลบ</button></td>
+  </tr>`; }).join('') : `<tr><td colspan="4" class="empty">ยังไม่มีความเชี่ยวชาญ</td></tr>`;
+}
+$('#exSearch').oninput = renderExpertise;
+const exExists = (name, exceptId) => expertise.some(x => x.id !== exceptId && x.name.trim().toLowerCase() === name.trim().toLowerCase());
+async function addExpertise(name){
+  name = name.trim();
+  if (!name) return null;
+  if (exExists(name)) { alert('มีความเชี่ยวชาญนี้อยู่แล้ว'); return expertise.find(x => x.name.trim().toLowerCase() === name.toLowerCase()).id; }
+  const ref = await addDoc(collection(db, 'expertise'), {name, createdAt: serverTimestamp()});
+  return ref.id;
+}
+$('#fmEx').onsubmit = async e => {
+  e.preventDefault();
+  try { await addExpertise(e.target.name.value); e.target.reset(); } catch (err) { alert(err.message); }
+};
+$('#exBody').onclick = async e => {
+  const ed = e.target.dataset.eex, dl = e.target.dataset.dex;
+  if (ed) {
+    const n = prompt('แก้ไขชื่อความเชี่ยวชาญ', exName(ed));
+    if (!n || !n.trim()) return;
+    if (exExists(n, ed)) return alert('มีความเชี่ยวชาญนี้อยู่แล้ว');
+    await updateDoc(doc(db, 'expertise', ed), {name: n.trim()}).catch(err => alert(err.message));
+  }
+  if (dl) {
+    const sp = exSpeakers(dl);
+    if (!confirm(`ยืนยันลบ "${exName(dl)}" ?` + (sp.length ? `\n(จะถูกนำออกจากวิทยากร ${sp.length} คนด้วย)` : ''))) return;
+    try {
+      const b = writeBatch(db);
+      sp.forEach(s => b.update(doc(db, 'speakers', s.id), {expertiseIds: arrayRemove(dl)}));
+      b.delete(doc(db, 'expertise', dl));
+      await b.commit();
+    } catch (err) { alert(err.message); }
+  }
+};
 
 // ---------- Speakers ----------
 let editSpId = null;
 function renderSpeakers(){
   const q = $('#spSearch').value.toLowerCase();
-  const rows = speakers.filter(s => [s.name, s.position, s.org, s.expertise].join(' ').toLowerCase().includes(q));
+  const rows = speakers.filter(s => [s.name, s.position, s.org, s.expertise, ...spExNames(s)].join(' ').toLowerCase().includes(q));
   $('#spBody').innerHTML = rows.length ? rows.map(s => `<tr>
     <td><b>${esc(s.name)}</b></td>
     <td>${esc(s.position)}${s.org ? '<br><small>' + esc(s.org) + '</small>' : ''}</td>
-    <td>${esc(s.expertise)}</td>
+    <td>${spExNames(s).map(n => `<span class="chip">${esc(n)}</span>`).join('')}${s.expertise ? '<br><small style="color:var(--mut)">' + esc(s.expertise) + '</small>' : ''}</td>
     <td>${esc(s.phone)}${s.email ? '<br><small>' + esc(s.email) + '</small>' : ''}</td>
     <td class="num">${spCount(s.id)}</td>
     <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-esp="${s.id}">แก้ไข</button> <button class="btn del sm" data-dsp="${s.id}">ลบ</button></td>
@@ -305,12 +374,32 @@ function openSp(s){
   $('#dlgSpTitle').textContent = s ? 'แก้ไขวิทยากร' : 'เพิ่มวิทยากร';
   const f = $('#fmSp'); f.reset();
   if (s) ['name','position','org','phone','email','expertise'].forEach(k => f[k].value = s[k] || '');
+  spExSelected = new Set(s?.expertiseIds || []);
+  $('#spExFilter').value = '';
+  renderSpExList();
   $('#dlgSp').showModal();
 }
+let spExSelected = new Set();
+function renderSpExList(){
+  const q = $('#spExFilter').value.toLowerCase();
+  const list = expertise.filter(x => spExSelected.has(x.id) || x.name.toLowerCase().includes(q));
+  $('#spExList').innerHTML = list.length ? list.map(x => `<label><input type="checkbox" value="${x.id}" ${spExSelected.has(x.id) ? 'checked' : ''}> ${esc(x.name)}</label>`).join('')
+    : '<div class="empty" style="padding:10px">ไม่พบ — พิมพ์ชื่อแล้วกด "+ เพิ่มใหม่"</div>';
+}
+$('#spExFilter').oninput = renderSpExList;
+$('#spExFilter').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('#spExAdd').click(); } };
+$('#spExList').onchange = e => { if (e.target.checked) spExSelected.add(e.target.value); else spExSelected.delete(e.target.value); };
+$('#spExAdd').onclick = async () => {
+  const n = $('#spExFilter').value;
+  if (!n.trim()) return alert('พิมพ์ชื่อความเชี่ยวชาญที่ต้องการเพิ่มก่อน');
+  try { const id = await addExpertise(n); if (id) spExSelected.add(id); $('#spExFilter').value = ''; renderSpExList(); }
+  catch (err) { alert(err.message); }
+};
 $('#fmSp').onsubmit = async e => {
   e.preventDefault();
   const f = e.target;
   const data = Object.fromEntries(['name','position','org','phone','email','expertise'].map(k => [k, f[k].value.trim()]));
+  data.expertiseIds = [...spExSelected].filter(id => expertise.some(x => x.id === id));
   try {
     if (editSpId) await updateDoc(doc(db, 'speakers', editSpId), {...data, updatedAt: serverTimestamp()});
     else await addDoc(collection(db, 'speakers'), {...data, createdAt: serverTimestamp()});
@@ -347,8 +436,8 @@ $('#btnAddTr').onclick = () => openTr();
 let trSelected = new Set();
 function renderTrSpList(){
   const q = $('#trSpFilter').value.toLowerCase();
-  const list = speakers.filter(s => trSelected.has(s.id) || [s.name, s.expertise, s.org].join(' ').toLowerCase().includes(q));
-  $('#trSpList').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}" ${trSelected.has(s.id) ? 'checked' : ''}> ${esc(s.name)} <small style="color:var(--mut)">${esc(s.expertise || '')}</small></label>`).join('')
+  const list = speakers.filter(s => trSelected.has(s.id) || [s.name, s.expertise, s.org, ...spExNames(s)].join(' ').toLowerCase().includes(q));
+  $('#trSpList').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}" ${trSelected.has(s.id) ? 'checked' : ''}> ${esc(s.name)} <small style="color:var(--mut)">${esc(spExNames(s).join(', '))}</small></label>`).join('')
     : '<div class="empty" style="padding:10px">ยังไม่มีวิทยากร — เพิ่มที่แท็บ "วิทยากร" ก่อน</div>';
 }
 $('#trSpFilter').oninput = renderTrSpList;
@@ -386,14 +475,28 @@ function renderReportFilters(){
   const keep = (sel, html) => { const v = sel.value; sel.innerHTML = html; sel.value = v; if (sel.value !== v) sel.value = ''; };
   keep($('#rpAgency'), '<option value="">ทั้งหมด</option>' + [...new Set(trainings.map(t => t.agency).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join(''));
   keep($('#rpSpeaker'), '<option value="">ทั้งหมด</option>' + speakers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join(''));
+  keep($('#rpExpertise'), '<option value="">ทั้งหมด</option>' + expertise.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join(''));
 }
 function filtered(){
-  const from = $('#rpFrom').value, to = $('#rpTo').value, ag = $('#rpAgency').value, sp = $('#rpSpeaker').value;
-  return trainings.filter(t => (!from || (t.endDate || t.startDate) >= from) && (!to || t.startDate <= to) && (!ag || t.agency === ag) && (!sp || (t.speakerIds || []).includes(sp)))
+  const from = $('#rpFrom').value, to = $('#rpTo').value, ag = $('#rpAgency').value, sp = $('#rpSpeaker').value, ex = $('#rpExpertise').value;
+  const exSp = ex ? new Set(exSpeakers(ex).map(s => s.id)) : null;
+  return trainings.filter(t => (!from || (t.endDate || t.startDate) >= from) && (!to || t.startDate <= to) && (!ag || t.agency === ag) && (!sp || (t.speakerIds || []).includes(sp))
+      && (!exSp || (t.speakerIds || []).some(id => exSp.has(id))))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 function reportData(){
   const list = filtered(), type = $('#rpType').value;
+  if (type === 'expertise') {
+    const exF = $('#rpExpertise').value, spF = $('#rpSpeaker').value;
+    const times = id => list.filter(t => (t.speakerIds || []).includes(id)).length;
+    const rows = [];
+    expertise.filter(x => !exF || x.id === exF).forEach(x => {
+      const sps = exSpeakers(x.id).filter(s => !spF || s.id === spF);
+      if (!sps.length) { if (!spF) rows.push([x.name, '(ยังไม่มีวิทยากร)', '', '', '']); return; }
+      sps.forEach(s => rows.push([x.name, s.name, [s.position, s.org].filter(Boolean).join(' / '), [s.phone, s.email].filter(Boolean).join(' / '), times(s.id)]));
+    });
+    return {head: ['ลำดับ','ความเชี่ยวชาญ','วิทยากร','ตำแหน่ง / สังกัด','ติดต่อ','จำนวนครั้งที่บรรยาย (ในช่วงที่เลือก)'], rows: rows.map((r, i) => [i + 1, ...r]), list};
+  }
   if (type === 'list') return {
     head: ['ลำดับ','วันที่จัด','ชื่อโครงการ','หน่วยงานที่จัด','สถานที่','วิทยากร'],
     rows: list.map((t, i) => [i + 1, dateRange(t), t.project, t.agency, t.location, (t.speakerIds || []).map(spName).join(', ')]), list };
@@ -418,7 +521,7 @@ function renderReport(){
   const f = $('#rpFrom').value, t = $('#rpTo').value;
   $('#rpPeriod').textContent = (f || t) ? `ช่วงวันที่ ${f ? thDate(f) : 'เริ่มต้น'} ถึง ${t ? thDate(t) : 'ปัจจุบัน'}` : 'ทุกช่วงเวลา';
 }
-['#rpFrom','#rpTo','#rpAgency','#rpSpeaker','#rpType'].forEach(s => $(s).onchange = renderReport);
+['#rpFrom','#rpTo','#rpAgency','#rpSpeaker','#rpExpertise','#rpType'].forEach(s => $(s).onchange = renderReport);
 $('#btnPrint').onclick = () => window.print();
 $('#btnCsv').onclick = () => {
   const {head, rows} = reportData();
