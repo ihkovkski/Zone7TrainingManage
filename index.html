@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ระบบบริการอบรมและวิทยากร สนง.คลังเขต 7</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--pri:#1e3a8a;--pri2:#2563eb;--bg:#f4f6fb;--card:#fff;--line:#e2e8f0;--mut:#64748b;--danger:#dc2626;--ok:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;font-family:Sarabun,system-ui,sans-serif;background:var(--bg);color:#0f172a;font-size:15px}
+header{background:var(--pri);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:1;min-width:220px}
+header .who{font-size:13px;opacity:.9}
+nav{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:4px;padding:0 16px;overflow-x:auto}
+nav button{border:0;background:none;padding:12px 14px;font:inherit;cursor:pointer;color:var(--mut);border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{color:var(--pri);border-color:var(--pri2);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px}
+.bar .grow{flex:1}
+label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;width:100%;background:#fff}
+textarea{min-height:60px}
+button.btn{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--pri2);background:var(--pri2);color:#fff;cursor:pointer;white-space:nowrap}
+button.btn.ghost{background:#fff;color:var(--pri2)}
+button.btn.sm{padding:4px 10px;font-size:13px}
+button.btn.del{background:#fff;color:var(--danger);border-color:var(--danger)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:#f8fafc;font-size:13px;color:var(--mut);font-weight:600}
+td.num,th.num{text-align:right}
+.chip{display:inline-block;background:#e0e7ff;color:var(--pri);border-radius:999px;padding:1px 10px;margin:2px 2px 0 0;font-size:13px}
+.empty{color:var(--mut);text-align:center;padding:24px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat b{display:block;font-size:26px;color:var(--pri)}
+.stat span{color:var(--mut);font-size:13px}
+.center{max-width:380px;margin:60px auto}
+.center h2{margin-top:0}
+.err{color:var(--danger);font-size:14px;min-height:20px}
+.link{background:none;border:0;color:var(--pri2);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+dialog{border:0;border-radius:12px;padding:0;width:min(640px,95vw);box-shadow:0 20px 50px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(15,23,42,.45)}
+dialog form{padding:20px}
+dialog h3{margin:0 0 14px}
+.dlg-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.spk-list{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px}
+.spk-list label{display:flex;gap:8px;align-items:center;color:inherit;font-size:14px;padding:4px;margin:0;cursor:pointer}
+.spk-list input{width:auto}
+.hidden{display:none!important}
+.admin-only{display:none!important}
+body.admin .admin-only{display:revert!important}
+.print-head{display:none}
+@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+@media print{
+  header,nav,.bar,.no-print,button{display:none!important}
+  body{background:#fff}.card{border:0;padding:0}
+  .print-head{display:block;text-align:center;margin-bottom:12px}
+  section{display:none!important}#tab-report{display:block!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>ระบบบริการอบรมและวิทยากร สนง.คลังเขต 7</h1>
+  <span class="who" id="who"></span>
+  <button class="btn ghost sm hidden" id="btnLogout">ออกจากระบบ</button>
+</header>
+
+<!-- ===== Login ===== -->
+<div id="view-login" class="hidden">
+  <div class="card center">
+    <h2>เข้าสู่ระบบ</h2>
+    <form id="authForm">
+      <div style="margin-bottom:10px"><label>ชื่อผู้ใช้</label><input id="authUser" autocomplete="username" required></div>
+      <div style="margin-bottom:10px"><label>รหัสผ่าน</label><input id="authPass" type="password" autocomplete="current-password" required></div>
+      <div class="err" id="authErr"></div>
+      <button class="btn" style="width:100%" id="authBtn">เข้าสู่ระบบ</button>
+    </form>
+    <p style="text-align:center;font-size:13px;color:var(--mut)">ไม่มีบัญชี? ติดต่อผู้ดูแลระบบ (Admin)</p>
+  </div>
+</div>
+
+<!-- ===== App ===== -->
+<div id="view-app" class="hidden">
+  <nav>
+    <button data-tab="trainings" class="on">การอบรม</button>
+    <button data-tab="speakers">วิทยากร</button>
+    <button data-tab="report">รายงาน</button>
+    <button data-tab="users" class="admin-only">จัดการผู้ใช้</button>
+  </nav>
+  <main>
+    <!-- Trainings -->
+    <section id="tab-trainings">
+      <div class="card">
+        <div class="bar">
+          <div class="grow"><label>ค้นหา</label><input id="trSearch" placeholder="ชื่อโครงการ / หน่วยงาน / สถานที่ / วิทยากร"></div>
+          <button class="btn admin-only" id="btnAddTr">+ สร้างการอบรม</button>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>วันที่จัด</th><th>ชื่อโครงการ</th><th>หน่วยงานที่จัด</th><th>สถานที่</th><th>วิทยากร</th><th class="admin-only"></th></tr></thead>
+          <tbody id="trBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- Speakers -->
+    <section id="tab-speakers" class="hidden">
+      <div class="card">
+        <div class="bar">
+          <div class="grow"><label>ค้นหา</label><input id="spSearch" placeholder="ชื่อ / ตำแหน่ง / ความเชี่ยวชาญ"></div>
+          <button class="btn admin-only" id="btnAddSp">+ เพิ่มวิทยากร</button>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>ชื่อ-สกุล</th><th>ตำแหน่ง / สังกัด</th><th>ความเชี่ยวชาญ</th><th>ติดต่อ</th><th class="num">จำนวนครั้ง</th><th class="admin-only"></th></tr></thead>
+          <tbody id="spBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- Report -->
+    <section id="tab-report" class="hidden">
+      <div class="card">
+        <div class="bar">
+          <div><label>ตั้งแต่วันที่</label><input type="date" id="rpFrom"></div>
+          <div><label>ถึงวันที่</label><input type="date" id="rpTo"></div>
+          <div class="grow"><label>หน่วยงานที่จัด</label><select id="rpAgency"></select></div>
+          <div class="grow"><label>วิทยากร</label><select id="rpSpeaker"></select></div>
+          <div><label>ประเภทรายงาน</label><select id="rpType"><option value="list">รายการการอบรม</option><option value="speaker">สรุปตามวิทยากร</option><option value="agency">สรุปตามหน่วยงาน</option></select></div>
+        </div>
+        <div class="bar">
+          <button class="btn" id="btnCsv">ดาวน์โหลด Excel (CSV)</button>
+          <button class="btn ghost" id="btnPrint">พิมพ์ / บันทึก PDF</button>
+        </div>
+      </div>
+      <div class="print-head"><h2 style="margin:0">รายงานการอบรมและวิทยากร สนง.คลังเขต 7</h2><div id="rpPeriod"></div></div>
+      <div class="stats" id="rpStats"></div>
+      <div class="card"><div class="tbl-wrap"><table id="rpTable"></table></div></div>
+    </section>
+
+    <!-- Users -->
+    <section id="tab-users" class="hidden">
+      <div class="card">
+        <form id="fmUser" class="bar">
+          <div class="grow"><label>ชื่อผู้ใช้ (ใช้ล็อกอิน)</label><input name="username" required pattern="[A-Za-z0-9_.\-]+" title="ภาษาอังกฤษ ตัวเลข _ . - เท่านั้น"></div>
+          <div class="grow"><label>ชื่อ-สกุล</label><input name="name" required></div>
+          <div class="grow"><label>รหัสผ่าน</label><input name="password" required minlength="4"></div>
+          <div><label>สิทธิ์</label><select name="role"><option value="user">ผู้ใช้ทั่วไป</option><option value="admin">Admin</option></select></div>
+          <button class="btn">+ เพิ่มผู้ใช้</button>
+        </form>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อ-สกุล</th><th>สิทธิ์</th><th></th></tr></thead>
+          <tbody id="usBody"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Speaker dialog -->
+<dialog id="dlgSp"><form id="fmSp" method="dialog">
+  <h3 id="dlgSpTitle">เพิ่มวิทยากร</h3>
+  <div class="grid2">
+    <div class="full"><label>ชื่อ-สกุล *</label><input name="name" required></div>
+    <div><label>ตำแหน่ง</label><input name="position"></div>
+    <div><label>สังกัด / หน่วยงาน</label><input name="org"></div>
+    <div><label>โทรศัพท์</label><input name="phone"></div>
+    <div><label>อีเมล</label><input name="email" type="email"></div>
+    <div class="full"><label>ความเชี่ยวชาญ / หัวข้อที่บรรยาย</label><textarea name="expertise"></textarea></div>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn" value="save">บันทึก</button></div>
+</form></dialog>
+
+<!-- Training dialog -->
+<dialog id="dlgTr"><form id="fmTr" method="dialog">
+  <h3 id="dlgTrTitle">สร้างการอบรม</h3>
+  <div class="grid2">
+    <div class="full"><label>ชื่อโครงการ *</label><input name="project" required></div>
+    <div class="full"><label>หน่วยงานที่จัด *</label><input name="agency" list="agencyList" required></div>
+    <div class="full"><label>สถานที่ *</label><input name="location" required></div>
+    <div><label>วันที่เริ่ม *</label><input name="startDate" type="date" required></div>
+    <div><label>วันที่สิ้นสุด</label><input name="endDate" type="date"></div>
+    <div class="full"><label>วิทยากร (เลือกได้หลายคน)</label>
+      <input id="trSpFilter" placeholder="ค้นหาวิทยากร..." style="margin-bottom:6px">
+      <div class="spk-list" id="trSpList"></div>
+    </div>
+    <div class="full"><label>หมายเหตุ</label><textarea name="note"></textarea></div>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn" value="save">บันทึก</button></div>
+</form></dialog>
+<datalist id="agencyList"></datalist>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, limit, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ====== ใส่ค่า Firebase config ของคุณตรงนี้ (ดูวิธีใน README.md) ======
+const firebaseConfig = {
+  apiKey: "AIzaSyCwfew_gNCg_RQCRbpu962-t5B_o2PmZPk",
+  authDomain: "treasury7-training.firebaseapp.com",
+  projectId: "treasury7-training",
+  storageBucket: "treasury7-training.firebasestorage.app",
+  messagingSenderId: "421051750462",
+  appId: "1:421051750462:web:c73041c9df9b7219c3996f"
+};
+// =====================================================================
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const thDate = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'}) : '';
+const dateRange = t => t.endDate && t.endDate !== t.startDate ? `${thDate(t.startDate)} – ${thDate(t.endDate)}` : thDate(t.startDate);
+const ROLE = {user:'ผู้ใช้ทั่วไป', admin:'Admin'};
+const hash = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('tr7:' + s)))].map(b => b.toString(16).padStart(2, '0')).join('');
+const uKey = u => u.trim().toLowerCase();
+
+let me = null, speakers = [], trainings = [], users = [], unsubs = [];
+const isAdmin = () => me?.role === 'admin';
+const spName = id => speakers.find(s => s.id === id)?.name || '(ลบแล้ว)';
+const spCount = id => trainings.filter(t => (t.speakerIds || []).includes(id)).length;
+
+function show(v){ ['login','app'].forEach(x => $('#view-' + x).classList.toggle('hidden', x !== v)); }
+
+// ---------- Login (ชื่อผู้ใช้ + รหัสผ่าน เก็บใน Firestore collection "users") ----------
+// ครั้งแรกที่ยังไม่มีผู้ใช้เลย ระบบจะสร้าง admin / admin1234 ให้อัตโนมัติ
+async function ensureFirstAdmin(){
+  const s = await getDocs(query(collection(db, 'users'), limit(1)));
+  if (s.empty) await setDoc(doc(db, 'users', 'admin'), {username: 'admin', name: 'ผู้ดูแลระบบ', role: 'admin', passHash: await hash('admin1234'), createdAt: serverTimestamp()});
+}
+$('#authForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#authErr').textContent = '';
+  $('#authBtn').disabled = true;
+  try {
+    await ensureFirstAdmin();
+    const key = uKey($('#authUser').value);
+    const snap = key ? await getDoc(doc(db, 'users', key)) : null;
+    if (!snap?.exists() || snap.data().passHash !== await hash($('#authPass').value)) throw new Error('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    localStorage.setItem('tr7_user', key);
+    $('#authPass').value = '';
+    await startSession(key);
+  } catch (err) {
+    $('#authErr').textContent = err.message;
+  } finally { $('#authBtn').disabled = false; }
+};
+$('#btnLogout').onclick = () => { localStorage.removeItem('tr7_user'); endSession(); };
+
+function endSession(){
+  unsubs.forEach(u => u()); unsubs = [];
+  me = null; $('#who').textContent = ''; $('#btnLogout').classList.add('hidden');
+  document.body.classList.remove('admin'); show('login');
+}
+
+async function startSession(key){
+  unsubs.forEach(u => u()); unsubs = [];
+  const snap = await getDoc(doc(db, 'users', key));
+  if (!snap.exists()) { localStorage.removeItem('tr7_user'); return endSession(); }
+  me = {uid: key, ...snap.data()};
+  $('#who').textContent = `${me.name} (${ROLE[me.role] || me.role})`;
+  $('#btnLogout').classList.remove('hidden');
+  document.body.classList.toggle('admin', isAdmin());
+  show('app');
+  unsubs.push(onSnapshot(query(collection(db, 'speakers'), orderBy('name')), s => { speakers = s.docs.map(d => ({id: d.id, ...d.data()})); renderAll(); }));
+  unsubs.push(onSnapshot(query(collection(db, 'trainings'), orderBy('startDate', 'desc')), s => { trainings = s.docs.map(d => ({id: d.id, ...d.data()})); renderAll(); }));
+  if (isAdmin()) unsubs.push(onSnapshot(collection(db, 'users'), s => { users = s.docs.map(d => ({id: d.id, ...d.data()})); renderUsers(); }));
+}
+// จำการล็อกอินไว้ในเครื่อง
+const saved = localStorage.getItem('tr7_user');
+if (saved) startSession(saved).catch(() => endSession()); else show('login');
+
+// ---------- Tabs ----------
+$$('nav button').forEach(b => b.onclick = () => {
+  $$('nav button').forEach(x => x.classList.toggle('on', x === b));
+  $$('main section').forEach(s => s.classList.toggle('hidden', s.id !== 'tab-' + b.dataset.tab));
+});
+$$('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+
+function renderAll(){ renderTrainings(); renderSpeakers(); renderReportFilters(); renderReport(); }
+
+// ---------- Speakers ----------
+let editSpId = null;
+function renderSpeakers(){
+  const q = $('#spSearch').value.toLowerCase();
+  const rows = speakers.filter(s => [s.name, s.position, s.org, s.expertise].join(' ').toLowerCase().includes(q));
+  $('#spBody').innerHTML = rows.length ? rows.map(s => `<tr>
+    <td><b>${esc(s.name)}</b></td>
+    <td>${esc(s.position)}${s.org ? '<br><small>' + esc(s.org) + '</small>' : ''}</td>
+    <td>${esc(s.expertise)}</td>
+    <td>${esc(s.phone)}${s.email ? '<br><small>' + esc(s.email) + '</small>' : ''}</td>
+    <td class="num">${spCount(s.id)}</td>
+    <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-esp="${s.id}">แก้ไข</button> <button class="btn del sm" data-dsp="${s.id}">ลบ</button></td>
+  </tr>`).join('') : `<tr><td colspan="6" class="empty">ยังไม่มีข้อมูลวิทยากร</td></tr>`;
+}
+$('#spSearch').oninput = renderSpeakers;
+$('#btnAddSp').onclick = () => openSp();
+function openSp(s){
+  editSpId = s?.id || null;
+  $('#dlgSpTitle').textContent = s ? 'แก้ไขวิทยากร' : 'เพิ่มวิทยากร';
+  const f = $('#fmSp'); f.reset();
+  if (s) ['name','position','org','phone','email','expertise'].forEach(k => f[k].value = s[k] || '');
+  $('#dlgSp').showModal();
+}
+$('#fmSp').onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target;
+  const data = Object.fromEntries(['name','position','org','phone','email','expertise'].map(k => [k, f[k].value.trim()]));
+  try {
+    if (editSpId) await updateDoc(doc(db, 'speakers', editSpId), {...data, updatedAt: serverTimestamp()});
+    else await addDoc(collection(db, 'speakers'), {...data, createdAt: serverTimestamp()});
+    $('#dlgSp').close();
+  } catch (err) { alert('บันทึกไม่สำเร็จ: ' + err.message); }
+};
+$('#spBody').onclick = async e => {
+  const ed = e.target.dataset.esp, dl = e.target.dataset.dsp;
+  if (ed) openSp(speakers.find(s => s.id === ed));
+  if (dl) {
+    const n = spCount(dl);
+    if (n) return alert(`ลบไม่ได้: วิทยากรนี้ถูกจับคู่กับการอบรม ${n} รายการ กรุณานำออกจากการอบรมก่อน`);
+    if (confirm('ยืนยันลบวิทยากร "' + spName(dl) + '" ?')) await deleteDoc(doc(db, 'speakers', dl)).catch(err => alert(err.message));
+  }
+};
+
+// ---------- Trainings ----------
+let editTrId = null;
+function renderTrainings(){
+  const q = $('#trSearch').value.toLowerCase();
+  const rows = trainings.filter(t => [t.project, t.agency, t.location, ...(t.speakerIds || []).map(spName)].join(' ').toLowerCase().includes(q));
+  $('#trBody').innerHTML = rows.length ? rows.map(t => `<tr>
+    <td style="white-space:nowrap">${dateRange(t)}</td>
+    <td><b>${esc(t.project)}</b>${t.note ? '<br><small style="color:var(--mut)">' + esc(t.note) + '</small>' : ''}</td>
+    <td>${esc(t.agency)}</td>
+    <td>${esc(t.location)}</td>
+    <td>${(t.speakerIds || []).map(id => `<span class="chip">${esc(spName(id))}</span>`).join('') || '<small style="color:var(--mut)">-</small>'}</td>
+    <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-etr="${t.id}">แก้ไข</button> <button class="btn del sm" data-dtr="${t.id}">ลบ</button></td>
+  </tr>`).join('') : `<tr><td colspan="6" class="empty">ยังไม่มีข้อมูลการอบรม</td></tr>`;
+  $('#agencyList').innerHTML = [...new Set(trainings.map(t => t.agency).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('');
+}
+$('#trSearch').oninput = renderTrainings;
+$('#btnAddTr').onclick = () => openTr();
+let trSelected = new Set();
+function renderTrSpList(){
+  const q = $('#trSpFilter').value.toLowerCase();
+  const list = speakers.filter(s => trSelected.has(s.id) || [s.name, s.expertise, s.org].join(' ').toLowerCase().includes(q));
+  $('#trSpList').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}" ${trSelected.has(s.id) ? 'checked' : ''}> ${esc(s.name)} <small style="color:var(--mut)">${esc(s.expertise || '')}</small></label>`).join('')
+    : '<div class="empty" style="padding:10px">ยังไม่มีวิทยากร — เพิ่มที่แท็บ "วิทยากร" ก่อน</div>';
+}
+$('#trSpFilter').oninput = renderTrSpList;
+$('#trSpList').onchange = e => { if (e.target.checked) trSelected.add(e.target.value); else trSelected.delete(e.target.value); };
+function openTr(t){
+  editTrId = t?.id || null;
+  $('#dlgTrTitle').textContent = t ? 'แก้ไขการอบรม' : 'สร้างการอบรม';
+  const f = $('#fmTr'); f.reset();
+  if (t) ['project','agency','location','startDate','endDate','note'].forEach(k => f[k].value = t[k] || '');
+  trSelected = new Set(t?.speakerIds || []);
+  $('#trSpFilter').value = '';
+  renderTrSpList();
+  $('#dlgTr').showModal();
+}
+$('#fmTr').onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target;
+  const data = Object.fromEntries(['project','agency','location','startDate','endDate','note'].map(k => [k, f[k].value.trim()]));
+  if (data.endDate && data.endDate < data.startDate) return alert('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม');
+  data.speakerIds = [...trSelected];
+  try {
+    if (editTrId) await updateDoc(doc(db, 'trainings', editTrId), {...data, updatedAt: serverTimestamp()});
+    else await addDoc(collection(db, 'trainings'), {...data, createdBy: me.uid, createdAt: serverTimestamp()});
+    $('#dlgTr').close();
+  } catch (err) { alert('บันทึกไม่สำเร็จ: ' + err.message); }
+};
+$('#trBody').onclick = async e => {
+  const ed = e.target.dataset.etr, dl = e.target.dataset.dtr;
+  if (ed) openTr(trainings.find(t => t.id === ed));
+  if (dl && confirm('ยืนยันลบการอบรมนี้?')) await deleteDoc(doc(db, 'trainings', dl)).catch(err => alert(err.message));
+};
+
+// ---------- Report ----------
+function renderReportFilters(){
+  const keep = (sel, html) => { const v = sel.value; sel.innerHTML = html; sel.value = v; if (sel.value !== v) sel.value = ''; };
+  keep($('#rpAgency'), '<option value="">ทั้งหมด</option>' + [...new Set(trainings.map(t => t.agency).filter(Boolean))].sort().map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join(''));
+  keep($('#rpSpeaker'), '<option value="">ทั้งหมด</option>' + speakers.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join(''));
+}
+function filtered(){
+  const from = $('#rpFrom').value, to = $('#rpTo').value, ag = $('#rpAgency').value, sp = $('#rpSpeaker').value;
+  return trainings.filter(t => (!from || (t.endDate || t.startDate) >= from) && (!to || t.startDate <= to) && (!ag || t.agency === ag) && (!sp || (t.speakerIds || []).includes(sp)))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+function reportData(){
+  const list = filtered(), type = $('#rpType').value;
+  if (type === 'list') return {
+    head: ['ลำดับ','วันที่จัด','ชื่อโครงการ','หน่วยงานที่จัด','สถานที่','วิทยากร'],
+    rows: list.map((t, i) => [i + 1, dateRange(t), t.project, t.agency, t.location, (t.speakerIds || []).map(spName).join(', ')]), list };
+  if (type === 'speaker') {
+    const m = new Map();
+    list.forEach(t => (t.speakerIds || []).forEach(id => { if (!m.has(id)) m.set(id, []); m.get(id).push(t.project); }));
+    const rows = [...m].sort((a, b) => b[1].length - a[1].length).map(([id, ps], i) => [i + 1, spName(id), speakers.find(s => s.id === id)?.org || '', ps.length, ps.join(', ')]);
+    return {head: ['ลำดับ','วิทยากร','สังกัด','จำนวนครั้ง','โครงการ'], rows, list, numCol: 3};
+  }
+  const m = new Map();
+  list.forEach(t => { if (!m.has(t.agency)) m.set(t.agency, []); m.get(t.agency).push(t); });
+  const rows = [...m].sort((a, b) => b[1].length - a[1].length).map(([a, ts], i) => [i + 1, a, ts.length, new Set(ts.flatMap(t => t.speakerIds || [])).size]);
+  return {head: ['ลำดับ','หน่วยงานที่จัด','จำนวนการอบรม','จำนวนวิทยากร (ไม่ซ้ำ)'], rows, list, numCol: 2};
+}
+function renderReport(){
+  const {head, rows, list} = reportData();
+  const spUsed = new Set(list.flatMap(t => t.speakerIds || [])).size;
+  const ags = new Set(list.map(t => t.agency)).size;
+  $('#rpStats').innerHTML = `<div class="stat"><b>${list.length}</b><span>การอบรม</span></div><div class="stat"><b>${spUsed}</b><span>วิทยากรที่ร่วมบรรยาย</span></div><div class="stat"><b>${ags}</b><span>หน่วยงานที่จัด</span></div>`;
+  $('#rpTable').innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
+    (rows.length ? rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="empty">ไม่มีข้อมูลตามเงื่อนไข</td></tr>`) + '</tbody>';
+  const f = $('#rpFrom').value, t = $('#rpTo').value;
+  $('#rpPeriod').textContent = (f || t) ? `ช่วงวันที่ ${f ? thDate(f) : 'เริ่มต้น'} ถึง ${t ? thDate(t) : 'ปัจจุบัน'}` : 'ทุกช่วงเวลา';
+}
+['#rpFrom','#rpTo','#rpAgency','#rpSpeaker','#rpType'].forEach(s => $(s).onchange = renderReport);
+$('#btnPrint').onclick = () => window.print();
+$('#btnCsv').onclick = () => {
+  const {head, rows} = reportData();
+  const csv = [head, ...rows].map(r => r.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'}));
+  a.download = `รายงานการอบรม_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+};
+
+// ---------- Users (admin) ----------
+function renderUsers(){
+  const self = u => u.id === me.uid;
+  $('#usBody').innerHTML = users.sort((a, b) => a.role.localeCompare(b.role) || a.id.localeCompare(b.id)).map(u => `<tr>
+    <td><b>${esc(u.username || u.id)}</b></td><td>${esc(u.name)}</td>
+    <td><select data-uid="${u.id}" ${self(u) ? 'disabled title="แก้สิทธิ์ตัวเองไม่ได้"' : ''} style="width:auto">
+      ${Object.entries(ROLE).map(([k, v]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${v}</option>`).join('')}
+    </select></td>
+    <td style="white-space:nowrap"><button class="btn ghost sm" data-pw="${u.id}">เปลี่ยนรหัสผ่าน</button>
+      ${self(u) ? '' : `<button class="btn del sm" data-du="${u.id}">ลบ</button>`}</td></tr>`).join('');
+}
+$('#usBody').onchange = async e => {
+  const uid = e.target.dataset.uid;
+  if (uid) await updateDoc(doc(db, 'users', uid), {role: e.target.value}).catch(err => alert(err.message));
+};
+$('#usBody').onclick = async e => {
+  const pw = e.target.dataset.pw, du = e.target.dataset.du;
+  if (pw) {
+    const p = prompt(`รหัสผ่านใหม่ของ "${pw}" (อย่างน้อย 4 ตัว)`);
+    if (p === null) return;
+    if (p.length < 4) return alert('รหัสผ่านต้องมีอย่างน้อย 4 ตัว');
+    await updateDoc(doc(db, 'users', pw), {passHash: await hash(p)}).then(() => alert('เปลี่ยนรหัสผ่านแล้ว')).catch(err => alert(err.message));
+  }
+  if (du && confirm(`ยืนยันลบผู้ใช้ "${du}" ?`)) await deleteDoc(doc(db, 'users', du)).catch(err => alert(err.message));
+};
+$('#fmUser').onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target, key = uKey(f.username.value);
+  if (users.some(u => u.id === key)) return alert('ชื่อผู้ใช้นี้มีอยู่แล้ว');
+  try {
+    await setDoc(doc(db, 'users', key), {username: key, name: f.name.value.trim(), role: f.role.value, passHash: await hash(f.password.value), createdAt: serverTimestamp()});
+    f.reset();
+  } catch (err) { alert('เพิ่มไม่สำเร็จ: ' + err.message); }
+};
+</script>
+</body>
+</html>
