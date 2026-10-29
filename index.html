@@ -51,6 +51,17 @@ dialog h3{margin:0 0 14px}
 .spk-list{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px}
 .spk-list label{display:flex;gap:8px;align-items:center;color:inherit;font-size:14px;padding:4px;margin:0;cursor:pointer}
 .spk-list input{width:auto}
+.date-box{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px}
+.date-box small{display:block;color:var(--mut);font-size:12px}
+.dchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--pri2);background:#fff;color:var(--pri2);border-radius:999px;padding:2px 10px;margin:2px;font:inherit;font-size:13px;cursor:pointer}
+.dchip.on{background:var(--pri2);color:#fff}
+.dchip.rm{background:#e0e7ff;color:var(--pri);border-color:#e0e7ff;cursor:default}
+.dchip.rm b{cursor:pointer;font-weight:700;padding-left:2px}
+.sp-row{border-bottom:1px dashed var(--line);padding:4px 0}
+.sp-row:last-child{border-bottom:0}
+.sp-days{padding:2px 0 6px 28px}
+.dlist{font-size:13px;color:var(--mut)}
+dialog{width:min(760px,95vw)}
 .hidden{display:none!important}
 .admin-only{display:none!important}
 body.admin .admin-only{display:revert!important}
@@ -203,11 +214,22 @@ body.admin .admin-only{display:revert!important}
     <div class="full"><label>ชื่อโครงการ *</label><input name="project" required></div>
     <div class="full"><label>หน่วยงานที่จัด *</label><input name="agency" list="agencyList" required></div>
     <div class="full"><label>สถานที่ *</label><input name="location" required></div>
-    <div><label>วันที่เริ่ม *</label><input name="startDate" type="date" required></div>
-    <div><label>วันที่สิ้นสุด</label><input name="endDate" type="date"></div>
-    <div class="full"><label>วิทยากร (เลือกได้หลายคน)</label>
+    <div class="full date-box">
+      <label>วันที่จัดอบรม * <span id="trDateCount" style="color:var(--pri2)"></span></label>
+      <div class="bar" style="margin-bottom:6px">
+        <div><small>เพิ่มทีละวัน</small><input type="date" id="trOneDate"></div>
+        <button type="button" class="btn ghost sm" id="trAddOne">+ เพิ่มวัน</button>
+        <span style="width:12px"></span>
+        <div><small>หรือเพิ่มเป็นช่วง: ตั้งแต่</small><input type="date" id="trRangeFrom"></div>
+        <div><small>ถึง</small><input type="date" id="trRangeTo"></div>
+        <label style="display:flex;gap:4px;align-items:center;margin:0 0 8px;color:inherit"><input type="checkbox" id="trSkipWe" style="width:auto"> ข้ามเสาร์-อาทิตย์</label>
+        <button type="button" class="btn ghost sm" id="trAddRange">+ เพิ่มช่วง</button>
+      </div>
+      <div id="trDates"></div>
+    </div>
+    <div class="full"><label>วิทยากร (เลือกได้หลายคน แล้วกดเลือกวันที่แต่ละคนมาบรรยาย)</label>
       <input id="trSpFilter" placeholder="ค้นหาวิทยากร หรือความเชี่ยวชาญ..." style="margin-bottom:6px">
-      <div class="spk-list" id="trSpList"></div>
+      <div class="spk-list" id="trSpList" style="max-height:320px"></div>
     </div>
     <div class="full"><label>หมายเหตุ</label><textarea name="note"></textarea></div>
   </div>
@@ -237,7 +259,30 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const thDate = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'}) : '';
-const dateRange = t => t.endDate && t.endDate !== t.startDate ? `${thDate(t.startDate)} – ${thDate(t.endDate)}` : thDate(t.startDate);
+// ---- วันที่: การอบรมเก็บเป็นรายการวัน (dates[]) และวิทยากรแต่ละคนมีวันของตัวเอง (speakerDates{id: []}) ----
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDay = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+const shortTh = s => new Date(s + 'T00:00:00').toLocaleDateString('th-TH', {weekday: 'short', day: 'numeric', month: 'short'});
+function expandRange(a, b, skipWe){
+  const out = []; if (!a) return out; if (!b || b < a) b = a;
+  for (let d = a; d <= b; d = addDay(d, 1)) { const w = new Date(d + 'T00:00:00').getDay(); if (!(skipWe && (w === 0 || w === 6))) out.push(d); }
+  return out;
+}
+const tDates = t => (t.dates?.length ? [...t.dates] : expandRange(t.startDate, t.endDate)).sort();
+const spDates = (t, id) => (t.speakerDates?.[id] || tDates(t)).slice().sort();
+// รวมวันที่ติดกันเป็นช่วง เช่น "3–5 พ.ย. 2569, 10 พ.ย. 2569"
+function fmtDates(arr){
+  const ds = [...new Set(arr)].sort(); if (!ds.length) return '';
+  const groups = []; let g = [ds[0], ds[0]];
+  for (const d of ds.slice(1)) { if (d === addDay(g[1], 1)) g[1] = d; else { groups.push(g); g = [d, d]; } }
+  groups.push(g);
+  const dm = s => new Date(s + 'T00:00:00').toLocaleDateString('th-TH', {day: 'numeric', month: 'short'});
+  const y = s => new Date(s + 'T00:00:00').toLocaleDateString('th-TH', {year: 'numeric'}).replace(/\D/g, '');
+  return groups.map(([a, b]) => a === b ? thDate(a)
+    : a.slice(0, 7) === b.slice(0, 7) ? `${+a.slice(8)}–${thDate(b)}`
+    : `${dm(a)}${y(a) !== y(b) ? ' ' + y(a) : ''} – ${thDate(b)}`).join(', ');
+}
+const dateRange = t => fmtDates(tDates(t));
 const ROLE = {user:'ผู้ใช้ทั่วไป', admin:'Admin'};
 const hash = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('tr7:' + s)))].map(b => b.toString(16).padStart(2, '0')).join('');
 const uKey = u => u.trim().toLowerCase();
@@ -249,6 +294,7 @@ const exName = id => expertise.find(x => x.id === id)?.name || '';
 const spExNames = s => (s.expertiseIds || []).map(exName).filter(Boolean);
 const exSpeakers = id => speakers.filter(s => (s.expertiseIds || []).includes(id));
 const spCount = id => trainings.filter(t => (t.speakerIds || []).includes(id)).length;
+const spDays = id => trainings.filter(t => (t.speakerIds || []).includes(id)).reduce((n, t) => n + spDates(t, id).length, 0);
 
 function show(v){ ['login','app'].forEach(x => $('#view-' + x).classList.toggle('hidden', x !== v)); }
 
@@ -363,7 +409,7 @@ function renderSpeakers(){
     <td>${esc(s.position)}${s.org ? '<br><small>' + esc(s.org) + '</small>' : ''}</td>
     <td>${spExNames(s).map(n => `<span class="chip">${esc(n)}</span>`).join('')}${s.expertise ? '<br><small style="color:var(--mut)">' + esc(s.expertise) + '</small>' : ''}</td>
     <td>${esc(s.phone)}${s.email ? '<br><small>' + esc(s.email) + '</small>' : ''}</td>
-    <td class="num">${spCount(s.id)}</td>
+    <td class="num">${spCount(s.id)}<br><small style="color:var(--mut)">${spDays(s.id)} วัน</small></td>
     <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-esp="${s.id}">แก้ไข</button> <button class="btn del sm" data-dsp="${s.id}">ลบ</button></td>
   </tr>`).join('') : `<tr><td colspan="6" class="empty">ยังไม่มีข้อมูลวิทยากร</td></tr>`;
 }
@@ -426,38 +472,92 @@ function renderTrainings(){
     <td><b>${esc(t.project)}</b>${t.note ? '<br><small style="color:var(--mut)">' + esc(t.note) + '</small>' : ''}</td>
     <td>${esc(t.agency)}</td>
     <td>${esc(t.location)}</td>
-    <td>${(t.speakerIds || []).map(id => `<span class="chip">${esc(spName(id))}</span>`).join('') || '<small style="color:var(--mut)">-</small>'}</td>
+    <td>${(t.speakerIds || []).map(id => `<div><span class="chip">${esc(spName(id))}</span>${tDates(t).length > 1 ? ` <span class="dlist">${esc(fmtDates(spDates(t, id)))}</span>` : ''}</div>`).join('') || '<small style="color:var(--mut)">-</small>'}</td>
     <td class="admin-only" style="white-space:nowrap"><button class="btn ghost sm" data-etr="${t.id}">แก้ไข</button> <button class="btn del sm" data-dtr="${t.id}">ลบ</button></td>
   </tr>`).join('') : `<tr><td colspan="6" class="empty">ยังไม่มีข้อมูลการอบรม</td></tr>`;
   $('#agencyList').innerHTML = [...new Set(trainings.map(t => t.agency).filter(Boolean))].map(a => `<option value="${esc(a)}">`).join('');
 }
 $('#trSearch').oninput = renderTrainings;
 $('#btnAddTr').onclick = () => openTr();
-let trSelected = new Set();
+// trDates = วันทั้งหมดของการอบรม, trSp = Map(วิทยากร -> Set วันที่มาบรรยาย)
+let trDatesSel = new Set(), trSp = new Map();
+function addTrDates(list){
+  const before = new Set(trDatesSel);
+  list.forEach(d => trDatesSel.add(d));
+  // วิทยากรที่เลือก "ทุกวัน" อยู่ ให้ได้วันใหม่ด้วยอัตโนมัติ
+  trSp.forEach(set => { if ([...before].every(d => set.has(d))) list.forEach(d => set.add(d)); });
+  renderTrDates(); renderTrSpList();
+}
+function renderTrDates(){
+  const ds = [...trDatesSel].sort();
+  $('#trDateCount').textContent = ds.length ? `(${ds.length} วัน: ${fmtDates(ds)})` : '';
+  $('#trDates').innerHTML = ds.length ? ds.map(d => `<span class="dchip rm">${shortTh(d)} <b data-rmd="${d}" title="ลบวันนี้">×</b></span>`).join('') + ` <button type="button" class="link" id="trClearDates" style="font-size:13px">ล้างทั้งหมด</button>`
+    : '<small>ยังไม่ได้เลือกวัน</small>';
+}
+$('#trAddOne').onclick = () => { const d = $('#trOneDate').value; if (!d) return alert('เลือกวันที่ก่อน'); addTrDates([d]); $('#trOneDate').value = ''; };
+$('#trAddRange').onclick = () => {
+  const a = $('#trRangeFrom').value, b = $('#trRangeTo').value;
+  if (!a || !b) return alert('เลือกวันเริ่มและวันสิ้นสุดของช่วง');
+  if (b < a) return alert('วันสิ้นสุดต้องไม่ก่อนวันเริ่ม');
+  const ds = expandRange(a, b, $('#trSkipWe').checked);
+  if (ds.length > 366) return alert('ช่วงวันยาวเกินไป');
+  addTrDates(ds); $('#trRangeFrom').value = $('#trRangeTo').value = '';
+};
+$('#trDates').onclick = e => {
+  const d = e.target.dataset.rmd;
+  if (d) { trDatesSel.delete(d); trSp.forEach(s => s.delete(d)); }
+  else if (e.target.id === 'trClearDates') { trDatesSel.clear(); trSp.forEach(s => s.clear()); }
+  else return;
+  renderTrDates(); renderTrSpList();
+};
+
 function renderTrSpList(){
   const q = $('#trSpFilter').value.toLowerCase();
-  const list = speakers.filter(s => trSelected.has(s.id) || [s.name, s.expertise, s.org, ...spExNames(s)].join(' ').toLowerCase().includes(q));
-  $('#trSpList').innerHTML = list.length ? list.map(s => `<label><input type="checkbox" value="${s.id}" ${trSelected.has(s.id) ? 'checked' : ''}> ${esc(s.name)} <small style="color:var(--mut)">${esc(spExNames(s).join(', '))}</small></label>`).join('')
-    : '<div class="empty" style="padding:10px">ยังไม่มีวิทยากร — เพิ่มที่แท็บ "วิทยากร" ก่อน</div>';
+  const ds = [...trDatesSel].sort();
+  const list = speakers.filter(s => trSp.has(s.id) || [s.name, s.expertise, s.org, ...spExNames(s)].join(' ').toLowerCase().includes(q));
+  $('#trSpList').innerHTML = list.length ? list.map(s => {
+    const sel = trSp.get(s.id);
+    return `<div class="sp-row"><label><input type="checkbox" data-sp="${s.id}" ${sel ? 'checked' : ''}> <b>${esc(s.name)}</b> <small style="color:var(--mut)">${esc(spExNames(s).join(', '))}</small></label>
+      ${sel ? `<div class="sp-days">${ds.length ? ds.map(d => `<button type="button" class="dchip ${sel.has(d) ? 'on' : ''}" data-tsp="${s.id}" data-d="${d}">${shortTh(d)}</button>`).join('')
+        + (ds.length > 1 ? ` <button type="button" class="link" style="font-size:13px" data-allsp="${s.id}">${ds.every(d => sel.has(d)) ? 'ไม่เลือกเลย' : 'ทุกวัน'}</button>` : '')
+        : '<small>เพิ่มวันที่จัดอบรมด้านบนก่อน</small>'}</div>` : ''}</div>`;
+  }).join('') : '<div class="empty" style="padding:10px">ยังไม่มีวิทยากร — เพิ่มที่แท็บ "วิทยากร" ก่อน</div>';
 }
 $('#trSpFilter').oninput = renderTrSpList;
-$('#trSpList').onchange = e => { if (e.target.checked) trSelected.add(e.target.value); else trSelected.delete(e.target.value); };
+$('#trSpList').onchange = e => {
+  const id = e.target.dataset.sp; if (!id) return;
+  if (e.target.checked) trSp.set(id, new Set(trDatesSel)); else trSp.delete(id);
+  renderTrSpList();
+};
+$('#trSpList').onclick = e => {
+  const id = e.target.dataset.tsp, all = e.target.dataset.allsp;
+  if (id) { const s = trSp.get(id), d = e.target.dataset.d; s.has(d) ? s.delete(d) : s.add(d); renderTrSpList(); }
+  if (all) { const s = trSp.get(all); const full = [...trDatesSel].every(d => s.has(d)); trSp.set(all, full ? new Set() : new Set(trDatesSel)); renderTrSpList(); }
+};
 function openTr(t){
   editTrId = t?.id || null;
   $('#dlgTrTitle').textContent = t ? 'แก้ไขการอบรม' : 'สร้างการอบรม';
   const f = $('#fmTr'); f.reset();
-  if (t) ['project','agency','location','startDate','endDate','note'].forEach(k => f[k].value = t[k] || '');
-  trSelected = new Set(t?.speakerIds || []);
+  if (t) ['project','agency','location','note'].forEach(k => f[k].value = t[k] || '');
+  trDatesSel = new Set(t ? tDates(t) : []);
+  trSp = new Map((t?.speakerIds || []).map(id => [id, new Set(spDates(t, id))]));
   $('#trSpFilter').value = '';
-  renderTrSpList();
+  renderTrDates(); renderTrSpList();
   $('#dlgTr').showModal();
 }
 $('#fmTr').onsubmit = async e => {
   e.preventDefault();
   const f = e.target;
-  const data = Object.fromEntries(['project','agency','location','startDate','endDate','note'].map(k => [k, f[k].value.trim()]));
-  if (data.endDate && data.endDate < data.startDate) return alert('วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม');
-  data.speakerIds = [...trSelected];
+  const data = Object.fromEntries(['project','agency','location','note'].map(k => [k, f[k].value.trim()]));
+  const ds = [...trDatesSel].sort();
+  if (!ds.length) return alert('กรุณาเพิ่มวันที่จัดอบรมอย่างน้อย 1 วัน');
+  const noDay = [...trSp].filter(([, s]) => !s.size).map(([id]) => spName(id));
+  if (noDay.length) return alert('กรุณาเลือกวันบรรยายให้วิทยากร: ' + noDay.join(', '));
+  Object.assign(data, {
+    dates: ds, startDate: ds[0], endDate: ds[ds.length - 1],
+    speakerIds: [...trSp.keys()],
+    speakerDates: Object.fromEntries([...trSp].map(([id, s]) => [id, [...s].filter(d => trDatesSel.has(d)).sort()]))
+  });
   try {
     if (editTrId) await updateDoc(doc(db, 'trainings', editTrId), {...data, updatedAt: serverTimestamp()});
     else await addDoc(collection(db, 'trainings'), {...data, createdBy: me.uid, createdAt: serverTimestamp()});
@@ -480,15 +580,20 @@ function renderReportFilters(){
 function filtered(){
   const from = $('#rpFrom').value, to = $('#rpTo').value, ag = $('#rpAgency').value, sp = $('#rpSpeaker').value, ex = $('#rpExpertise').value;
   const exSp = ex ? new Set(exSpeakers(ex).map(s => s.id)) : null;
-  return trainings.filter(t => (!from || (t.endDate || t.startDate) >= from) && (!to || t.startDate <= to) && (!ag || t.agency === ag) && (!sp || (t.speakerIds || []).includes(sp))
-      && (!exSp || (t.speakerIds || []).some(id => exSp.has(id))))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const spIn = (t, id) => (t.speakerIds || []).includes(id) && spDatesIn(t, id).length;
+  return trainings.filter(t => tDates(t).some(inRange) && (!ag || t.agency === ag) && (!sp || spIn(t, sp))
+      && (!exSp || (t.speakerIds || []).some(id => exSp.has(id) && spIn(t, id))))
+    .sort((a, b) => tDates(a)[0].localeCompare(tDates(b)[0]));
 }
+const inRange = d => (!$('#rpFrom').value || d >= $('#rpFrom').value) && (!$('#rpTo').value || d <= $('#rpTo').value);
+const spDatesIn = (t, id) => spDates(t, id).filter(inRange);
+// วิทยากรที่มาบรรยายจริงในช่วงที่เลือก
+const activeSp = t => (t.speakerIds || []).filter(id => spDatesIn(t, id).length);
 function reportData(){
   const list = filtered(), type = $('#rpType').value;
   if (type === 'expertise') {
     const exF = $('#rpExpertise').value, spF = $('#rpSpeaker').value;
-    const times = id => list.filter(t => (t.speakerIds || []).includes(id)).length;
+    const times = id => { const ts = list.filter(t => activeSp(t).includes(id)); return ts.length ? `${ts.length} ครั้ง / ${ts.reduce((n, t) => n + spDatesIn(t, id).length, 0)} วัน` : 0; };
     const rows = [];
     expertise.filter(x => !exF || x.id === exF).forEach(x => {
       const sps = exSpeakers(x.id).filter(s => !spF || s.id === spF);
@@ -498,24 +603,28 @@ function reportData(){
     return {head: ['ลำดับ','ความเชี่ยวชาญ','วิทยากร','ตำแหน่ง / สังกัด','ติดต่อ','จำนวนครั้งที่บรรยาย (ในช่วงที่เลือก)'], rows: rows.map((r, i) => [i + 1, ...r]), list};
   }
   if (type === 'list') return {
-    head: ['ลำดับ','วันที่จัด','ชื่อโครงการ','หน่วยงานที่จัด','สถานที่','วิทยากร'],
-    rows: list.map((t, i) => [i + 1, dateRange(t), t.project, t.agency, t.location, (t.speakerIds || []).map(spName).join(', ')]), list };
+    head: ['ลำดับ','วันที่จัด','จำนวนวัน','ชื่อโครงการ','หน่วยงานที่จัด','สถานที่','วิทยากร (วันที่บรรยาย)'],
+    rows: list.map((t, i) => [i + 1, fmtDates(tDates(t).filter(inRange)), tDates(t).filter(inRange).length, t.project, t.agency, t.location,
+      activeSp(t).map(id => `${spName(id)} (${fmtDates(spDatesIn(t, id))})`).join('; ')]), list };
   if (type === 'speaker') {
     const m = new Map();
-    list.forEach(t => (t.speakerIds || []).forEach(id => { if (!m.has(id)) m.set(id, []); m.get(id).push(t.project); }));
-    const rows = [...m].sort((a, b) => b[1].length - a[1].length).map(([id, ps], i) => [i + 1, spName(id), speakers.find(s => s.id === id)?.org || '', ps.length, ps.join(', ')]);
-    return {head: ['ลำดับ','วิทยากร','สังกัด','จำนวนครั้ง','โครงการ'], rows, list, numCol: 3};
+    list.forEach(t => activeSp(t).forEach(id => { if (!m.has(id)) m.set(id, []); m.get(id).push({t, ds: spDatesIn(t, id)}); }));
+    const days = xs => xs.reduce((n, x) => n + x.ds.length, 0);
+    const rows = [...m].sort((a, b) => days(b[1]) - days(a[1])).map(([id, xs], i) => [i + 1, spName(id), speakers.find(s => s.id === id)?.org || '', xs.length, days(xs),
+      xs.map(x => `${x.t.project} (${fmtDates(x.ds)})`).join('; ')]);
+    return {head: ['ลำดับ','วิทยากร','สังกัด','จำนวนการอบรม','จำนวนวันบรรยาย','โครงการ (วันที่บรรยาย)'], rows, list};
   }
   const m = new Map();
   list.forEach(t => { if (!m.has(t.agency)) m.set(t.agency, []); m.get(t.agency).push(t); });
-  const rows = [...m].sort((a, b) => b[1].length - a[1].length).map(([a, ts], i) => [i + 1, a, ts.length, new Set(ts.flatMap(t => t.speakerIds || [])).size]);
-  return {head: ['ลำดับ','หน่วยงานที่จัด','จำนวนการอบรม','จำนวนวิทยากร (ไม่ซ้ำ)'], rows, list, numCol: 2};
+  const rows = [...m].sort((a, b) => b[1].length - a[1].length).map(([a, ts], i) => [i + 1, a, ts.length, ts.reduce((n, t) => n + tDates(t).filter(inRange).length, 0), new Set(ts.flatMap(activeSp)).size]);
+  return {head: ['ลำดับ','หน่วยงานที่จัด','จำนวนการอบรม','จำนวนวันอบรม','จำนวนวิทยากร (ไม่ซ้ำ)'], rows, list};
 }
 function renderReport(){
   const {head, rows, list} = reportData();
-  const spUsed = new Set(list.flatMap(t => t.speakerIds || [])).size;
+  const spUsed = new Set(list.flatMap(activeSp)).size;
+  const totalDays = list.reduce((n, t) => n + tDates(t).filter(inRange).length, 0);
   const ags = new Set(list.map(t => t.agency)).size;
-  $('#rpStats').innerHTML = `<div class="stat"><b>${list.length}</b><span>การอบรม</span></div><div class="stat"><b>${spUsed}</b><span>วิทยากรที่ร่วมบรรยาย</span></div><div class="stat"><b>${ags}</b><span>หน่วยงานที่จัด</span></div>`;
+  $('#rpStats').innerHTML = `<div class="stat"><b>${list.length}</b><span>การอบรม</span></div><div class="stat"><b>${totalDays}</b><span>วันอบรมรวม</span></div><div class="stat"><b>${spUsed}</b><span>วิทยากรที่ร่วมบรรยาย</span></div><div class="stat"><b>${ags}</b><span>หน่วยงานที่จัด</span></div>`;
   $('#rpTable').innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
     (rows.length ? rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="empty">ไม่มีข้อมูลตามเงื่อนไข</td></tr>`) + '</tbody>';
   const f = $('#rpFrom').value, t = $('#rpTo').value;
